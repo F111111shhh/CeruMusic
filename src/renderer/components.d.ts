@@ -23,7 +23,6 @@ declare module 'vue' {
     DevAuthInjector: typeof import('./src/components/Dev/DevAuthInjector.vue')['default']
     DirectorySettings: typeof import('./src/components/Settings/DirectorySettings.vue')['default']
     EqualizerSettings: typeof import('./src/components/Settings/EqualizerSettings.vue')['default']
-    FirstRunDialog: typeof import('./src/components/FirstRunDialog.vue')['default']
     FloatBall: typeof import('./src/components/AI/FloatBall.vue')['default']
     FullPlay: typeof import('./src/components/Play/FullPlay.vue')['default']
     GlobalAudio: typeof import('./src/components/Play/GlobalAudio.vue')['default']
