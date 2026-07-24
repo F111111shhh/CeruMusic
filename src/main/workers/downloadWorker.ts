@@ -249,7 +249,7 @@ async function download(task: DownloadTask): Promise<any> {
       }
     } catch {}
 
-    if (tagWriteOptions && songInfo?.source !== 'update' && isAudioFile(finalPath)) {
+    if (tagWriteOptions && isAudioFile(finalPath)) {
       await processSongFiles(finalPath, songInfo, tagWriteOptions)
     }
 

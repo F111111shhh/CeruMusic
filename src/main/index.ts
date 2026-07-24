@@ -792,20 +792,10 @@ function createWindow(): void {
   }
 }
 
-import { registerAutoUpdateEvents, initAutoUpdateForWindow } from './events/autoUpdate'
-import { cleanupDownloadedInstallers } from './autoUpdate'
-
-// 注册自动更新事件 - 尽早注册以避免时序问题
-registerAutoUpdateEvents()
-
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  // 清理上次安装残留的安装包（仅限临时目录）
-  try {
-    await cleanupDownloadedInstallers()
-  } catch {}
   // Set app user model id for windows - 确保与 electron-builder.yml 中的 appId 一致
   // dev 模式用单独 AUMID，避免 electron.exe 被注册为 com.cerumusic.app 污染
   // Windows Toast / SMTC / 任务栏分组的缓存。详见对应排障记录。
@@ -922,9 +912,8 @@ app.whenReady().then(async () => {
   ipcMain.on('stopPing', () => {
     clearInterval(ping)
   })
-  // 初始化自动更新器 桌面歌词
+  // 初始化桌面歌词
   if (mainWindow) {
-    initAutoUpdateForWindow(mainWindow)
     lyricWindow.create()
     initLyricIpc(mainWindow)
     const startArg = process.argv?.find((a) => /\.(cmpl|cpl)$/i.test(a))

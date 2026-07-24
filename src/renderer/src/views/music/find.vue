@@ -63,6 +63,8 @@ const categoryCache = new Map<string, CacheEntry>()
 const showMore = ref<boolean>(false)
 
 let watchSource: WatchHandle | null = null
+let categoryRequestId = 0
+let tagRequestId = 0
 
 const cacheKey = computed(() => `${userSource.value.source || 'wy'}::${activeTagId.value || 'hot'}`)
 
@@ -83,10 +85,13 @@ const mapItem = (item: any): Playlist => ({
 })
 
 const fetchTags = async (): Promise<void> => {
+  const requestId = ++tagRequestId
+  const requestedSource = userSource.value.source || 'wy'
   try {
     const res = await window.api.music.requestSdk('getPlaylistTags', {
-      source: userSource.value.source || 'wy'
+      source: requestedSource
     })
+    if (requestId !== tagRequestId || requestedSource !== (userSource.value.source || 'wy')) return
     tags.value = res?.tags || []
     hotTag.value = res?.hotTag || []
     if (!activeGroupName.value) activeGroupName.value = tags.value[0]?.name || ''
@@ -96,8 +101,9 @@ const fetchTags = async (): Promise<void> => {
 }
 
 const fetchCategoryPlaylists = async (reset = false): Promise<void> => {
-  if (loadingMore.value) return
+  if (!reset && loadingMore.value) return
   if (reset) {
+    categoryRequestId += 1
     page.value = 1
     noMore.value = false
     error.value = ''
@@ -114,15 +120,26 @@ const fetchCategoryPlaylists = async (reset = false): Promise<void> => {
     loading.value = true
     recommendPlaylists.value = []
   }
+  const requestId = ++categoryRequestId
+  const requestedSource = userSource.value.source || 'wy'
+  const requestedTagId = activeTagId.value
+  const requestedPage = page.value
   loadingMore.value = true
   try {
     const res = await window.api.music.requestSdk('getCategoryPlaylists', {
-      source: userSource.value.source || 'wy',
+      source: requestedSource,
       sortId: 'hot',
-      tagId: activeTagId.value,
-      page: page.value,
+      tagId: requestedTagId,
+      page: requestedPage,
       limit: limit.value
     })
+    if (
+      requestId !== categoryRequestId ||
+      requestedSource !== (userSource.value.source || 'wy') ||
+      requestedTagId !== activeTagId.value
+    ) {
+      return
+    }
     const rawList = Array.isArray(res?.list) ? res.list : []
     const mapped: Playlist[] = rawList.map(mapItem)
     total.value = res?.total || 0
@@ -140,11 +157,15 @@ const fetchCategoryPlaylists = async (reset = false): Promise<void> => {
     })
     error.value = ''
   } catch (e) {
-    console.error('获取分类歌单失败:', e)
-    if (!recommendPlaylists.value.length) error.value = '获取分类歌单失败,请稍后重试'
+    if (requestId === categoryRequestId) {
+      console.error('获取分类歌单失败:', e)
+      if (!recommendPlaylists.value.length) error.value = '获取分类歌单失败,请稍后重试'
+    }
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (requestId === categoryRequestId) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
@@ -204,6 +225,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  categoryRequestId += 1
+  tagRequestId += 1
   if (watchSource) {
     watchSource()
     watchSource = null

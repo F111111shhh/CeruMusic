@@ -5,11 +5,37 @@
 > 写明新功能 / 修复 / 入口路径,而非提交级技术细节。
 >
 > 文件被 [`.github/workflows/main.yml`](.github/workflows/main.yml) 在打 tag 发布时
-> 提取 **第一个 `## [vX.Y.Z]` 块** 作为 GitHub Release 正文,也就是软件内
-> "检查更新" 弹窗显示的 **更新说明** 内容。所以发版前请把新版本写在文件顶部。
+> 提取 **第一个 `## [vX.Y.Z]` 块** 作为 GitHub Release 正文。
 >
 > 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/),
 > 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+---
+
+## [v1.14.2] - 2026-07-24 · 搜索、歌单与播放队列稳定性维护
+
+本次维护集中修复音乐发现、搜索、QQ 歌单和当前播放列表中的高频问题，
+同时移除已经不再维护的应用内自动更新链路，改为通过 GitHub Releases 手动获取新版本。
+
+### 修复
+
+- QQ 音乐搜索增加短暂错误重试、异常响应校验和空首页保护，避免网络抖动被误判为没有结果。
+- QQ 歌单详情切换到可用接口，并按每页 100 首加载，支持超过 100 首的大型歌单。
+- 修复搜索建议、搜索结果、发现页和歌单请求在快速切换关键词、音源或页面时互相覆盖的问题。
+- 修复搜索分页提前停止、异步封面回写旧结果以及下载数据缺少文件大小时任务失败的问题。
+- “加入并立即播放”的歌曲现在始终移动到当前播放列表顶部，不再跟随原播放位置插入到列表中间。
+
+### 优化
+
+- 搜索框增加清空按钮，搜索建议的音源回退规则保持一致。
+- 搜索、发现、歌单详情及相关元数据请求统一使用有限重试和退避策略。
+- 下载流程对歌词和附加元数据失败进行容错，非关键数据不会中断整个下载任务。
+- 关于页面收敛为版本、运行环境和法律声明，移除维护团队与宣传信息。
+
+### 发布方式
+
+- 移除应用内自动更新、更新进度界面、更新服务器和差分更新元数据。
+- 后续版本通过 GitHub Releases 发布，由用户自行下载和安装。
 
 ---
 
@@ -566,6 +592,8 @@
 
 ---
 
+[v1.14.2]: https://github.com/F111111shhh/CeruMusic/releases/tag/v1.14.2
+[v1.14.1]: https://github.com/F111111shhh/CeruMusic/releases/tag/v1.14.1
 [v1.14.0]: https://github.com/timeshiftsauce/CeruMusic/releases/tag/v1.14.0
 [v1.13.0]: https://github.com/timeshiftsauce/CeruMusic/releases/tag/v1.13.0
 [v1.12.0]: https://github.com/timeshiftsauce/CeruMusic/releases/tag/v1.12.0

@@ -9,7 +9,6 @@ Electron main process: bootstraps BrowserWindow, orchestrates IPC, download/play
 ```
 src/main/
 ├── index.ts          # app entry, window/tray/lifecycle wiring
-├── autoUpdate.ts     # updater helpers (legacy)
 ├── events/           # IPC handlers grouped by domain
 ├── services/         # Download manager, plugins, music cache, song list, AI
 ├── utils/            # Cross-provider music SDK utilities (JS + TS mix)

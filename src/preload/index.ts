@@ -240,53 +240,6 @@ const api = {
     set: (payload: HotkeyConfigPayload) => ipcRenderer.invoke('hotkeys:set', payload)
   },
 
-  // 自动更新相关
-  autoUpdater: {
-    checkForUpdates: () => ipcRenderer.invoke('auto-updater:check-for-updates'),
-    downloadUpdate: (mode?: 'differential' | 'full') =>
-      ipcRenderer.invoke('auto-updater:download-update', mode),
-    quitAndInstall: () => ipcRenderer.invoke('auto-updater:quit-and-install'),
-    getDownloadedPath: (updateInfo?: any) =>
-      ipcRenderer.invoke('auto-updater:get-downloaded-path', updateInfo),
-
-    // 监听更新事件
-    onCheckingForUpdate: (callback: () => void) => {
-      ipcRenderer.on('auto-updater:checking-for-update', callback)
-    },
-    onUpdateAvailable: (callback: () => void) => {
-      ipcRenderer.on('auto-updater:update-available', callback)
-    },
-    onUpdateNotAvailable: (callback: () => void) => {
-      ipcRenderer.on('auto-updater:update-not-available', callback)
-    },
-    onDownloadProgress: (callback: (progress: any) => void) => {
-      ipcRenderer.on('auto-updater:download-progress', (_, progress) => callback(progress))
-    },
-    onUpdateDownloaded: (callback: () => void) => {
-      ipcRenderer.on('auto-updater:update-downloaded', callback)
-    },
-    onError: (callback: (error: string) => void) => {
-      ipcRenderer.on('auto-updater:error', (_, error) => callback(error))
-    },
-    onDownloadStarted: (callback: (updateInfo: any) => void) => {
-      ipcRenderer.on('auto-updater:download-started', (_, updateInfo) => callback(updateInfo))
-    },
-    onDifferentialFallback: (callback: (info: { reason: string }) => void) => {
-      ipcRenderer.on('auto-updater:differential-fallback', (_, info) => callback(info))
-    },
-
-    // 移除所有监听器
-    removeAllListeners: () => {
-      ipcRenderer.removeAllListeners('auto-updater:checking-for-update')
-      ipcRenderer.removeAllListeners('auto-updater:update-available')
-      ipcRenderer.removeAllListeners('auto-updater:update-not-available')
-      ipcRenderer.removeAllListeners('auto-updater:download-started')
-      ipcRenderer.removeAllListeners('auto-updater:download-progress')
-      ipcRenderer.removeAllListeners('auto-updater:update-downloaded')
-      ipcRenderer.removeAllListeners('auto-updater:error')
-      ipcRenderer.removeAllListeners('auto-updater:differential-fallback')
-    }
-  },
   ping: (callbaack: Function) => ipcRenderer.on('song-ended', () => callbaack()),
   pingService: {
     start: () => {

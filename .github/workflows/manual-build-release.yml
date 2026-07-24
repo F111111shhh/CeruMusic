@@ -130,11 +130,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && matrix.os == 'macos-15-intel'
         shell: bash
         env:
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           sed -i.bak '/electron_builder_binaries_mirror/d' .npmrc || true
           yarn run build:mac:intel
@@ -143,11 +139,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && matrix.os == 'macos-latest'
         shell: bash
         env:
-          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           sed -i.bak '/electron_builder_binaries_mirror/d' .npmrc || true
           yarn run build:mac:arm64
@@ -159,17 +151,17 @@ jobs:
       - name: Cleanup Artifacts for Windows
         if: steps.gate.outputs.run == 'true' && matrix.os == 'windows-latest'
         run: |
-          npx del-cli "dist/*" "!dist/*.exe" "!dist/*.zip" "!dist/*.yml" "!dist/*.blockmap"
+          npx del-cli "dist/*" "!dist/*.exe" "!dist/*.zip"
 
       - name: Cleanup Artifacts for MacOS
         if: steps.gate.outputs.run == 'true' && startsWith(matrix.os, 'macos')
         run: |
-          npx del-cli "dist/*" "!dist/(*.dmg|*.zip|*.blockmap|latest*.yml)"
+          npx del-cli "dist/*" "!dist/(*.dmg|*.zip)"
 
       - name: Cleanup Artifacts for Linux
         if: steps.gate.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
         run: |
-          npx del-cli "dist/*" "!dist/(*.AppImage|*.deb|*.snap|*.blockmap|latest*.yml)"
+          npx del-cli "dist/*" "!dist/(*.AppImage|*.deb|*.snap)"
 
       - name: Upload build outputs to release
         if: steps.gate.outputs.run == 'true'

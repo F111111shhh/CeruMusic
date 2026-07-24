@@ -79,7 +79,7 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: true
+  notarize: false
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
   title: ${productName}
@@ -104,9 +104,5 @@ snap:
 deb:
   artifactName: ${name}-${version}-linux-${arch}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://update.cerumusic.top
-  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

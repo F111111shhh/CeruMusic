@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TitleBarControls from '@renderer/components/TitleBarControls.vue'
 import SearchSuggest from '@renderer/components/search/searchSuggest.vue'
-import { SearchIcon, MicrophoneIcon } from 'tdesign-icons-vue-next'
+import { SearchIcon, MicrophoneIcon, CloseCircleIcon } from 'tdesign-icons-vue-next'
 import { onMounted, onUnmounted, ref, watchEffect, computed, watch } from 'vue'
 import { LocalUserDetailStore } from '@renderer/store/LocalUserDetail'
 import { useRouter, useRoute } from 'vue-router'
@@ -204,6 +204,11 @@ const handleSearch = async () => {
   }
 }
 
+const clearSearch = () => {
+  SearchStore.setValue('')
+  inputRef.value?.focus?.()
+}
+
 // 处理按键事件，按下回车键时触发搜索
 const handleKeyDown = () => {
   handleSearch()
@@ -296,7 +301,7 @@ const steps = ref<GuideStep[]>([
   {
     element: '#settings-nav-about',
     title: '关于与支持',
-    body: '包含 应用版本信息(启动检查更新/手动检查)、技术栈与服务链接、开发团队介绍、法律声明与联系方式(QQ群/官网/问题反馈)。'
+    body: '包含应用版本、运行环境信息与软件使用相关的法律声明。'
   },
   {
     element: '.home-container',
@@ -404,10 +409,26 @@ function checkGuide() {
                   @blur="SearchStore.setFocus(false)"
                 >
                   <template #suffix>
+                    <t-tooltip v-if="SearchStore.value" content="清空搜索" placement="bottom">
+                      <t-button
+                        theme="default"
+                        variant="text"
+                        shape="circle"
+                        aria-label="清空搜索"
+                        style="display: flex; align-items: center; justify-content: center"
+                        @mousedown.prevent
+                        @click="clearSearch"
+                      >
+                        <CloseCircleIcon
+                          style="font-size: 16px; color: var(--td-text-color-secondary)"
+                        />
+                      </t-button>
+                    </t-tooltip>
                     <t-button
                       theme="primary"
                       variant="text"
                       shape="circle"
+                      aria-label="搜索"
                       style="display: flex; align-items: center; justify-content: center"
                       @click="handleSearch"
                     >

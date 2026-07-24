@@ -3,12 +3,14 @@ import { decodeName, formatPlayTime, dateFormat, formatPlayCount } from '../../i
 import { formatSingerName } from '../utils'
 import { getBatchMusicQualityInfo } from './quality_detail'
 
+const wait = (time) => new Promise((resolve) => setTimeout(resolve, time))
+
 export default {
   _requestObj_tags: null,
   _requestObj_hotTags: null,
   _requestObj_list: null,
   limit_list: 36,
-  limit_song: 100000,
+  limit_song: 100,
   successCode: 0,
   sortList: [
     {
@@ -70,8 +72,24 @@ export default {
       })
     )}`
   },
-  getListDetailUrl(id) {
-    return `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=${id}&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`
+  getListDetailUrl(id, page) {
+    const data = {
+      comm: { ct: 24, cv: 0 },
+      req: {
+        module: 'music.srfDissInfo.aiDissInfo',
+        method: 'uniform_get_Dissinfo',
+        param: {
+          disstid: Number(id),
+          enc_host_uin: '',
+          tag: 1,
+          userinfo: 1,
+          song_begin: (page - 1) * this.limit_song,
+          song_num: this.limit_song,
+          onlysonglist: 0
+        }
+      }
+    }
+    return `https://u.y.qq.com/cgi-bin/musicu.fcg?format=json&data=${encodeURIComponent(JSON.stringify(data))}`
   },
 
   // http://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=2849349915&pn=0&rn=100&encode=utf8&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.5.0_W1&newver=1
@@ -209,37 +227,55 @@ export default {
     return id
   },
   // 获取歌曲列表内的音乐
-  async getListDetail(id, tryNum = 0) {
+  async getListDetail(id, page = 1, tryNum = 0) {
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
 
     id = await this.getListId(id)
 
-    const requestObj_listDetail = httpFetch(this.getListDetailUrl(id), {
+    const requestObj_listDetail = httpFetch(this.getListDetailUrl(id, page), {
       headers: {
         Origin: 'https://y.qq.com',
-        Referer: `https://y.qq.com/n/yqq/playsquare/${id}.html`
+        Referer: `https://y.qq.com/n/ryqq/playlist/${id}`
       }
     })
-    const { body } = await requestObj_listDetail.promise
-    console.log(body)
+    let body
+    try {
+      ;({ body } = await requestObj_listDetail.promise)
+    } catch (error) {
+      if (tryNum >= 2) throw error
+      await wait(300 + tryNum * 250)
+      return this.getListDetail(id, page, tryNum + 1)
+    }
 
-    if (body.code !== this.successCode) return this.getListDetail(id, ++tryNum)
-    const cdlist = body.cdlist[0]
+    const data = body?.req?.data
+    const rawList = data?.songlist
+    if (
+      body?.code !== this.successCode ||
+      body?.req?.code !== this.successCode ||
+      !Array.isArray(rawList)
+    ) {
+      await wait(300 + tryNum * 250)
+      return this.getListDetail(id, page, tryNum + 1)
+    }
+
+    const info = data.dirinfo || {}
+    const total = Number(data.total_song_num ?? info.songnum ?? rawList.length)
     return {
-      list: await this.filterListDetail(cdlist.songlist),
-      page: 1,
-      limit: cdlist.songlist.length + 1,
-      total: cdlist.songlist.length,
+      list: await this.filterListDetail(rawList),
+      page,
+      limit: this.limit_song,
+      total,
       source: 'tx',
       info: {
-        name: cdlist.dissname,
-        img: cdlist.logo,
-        desc: decodeName(cdlist.desc).replace(/<br>/g, '\n'),
+        name: info.title,
+        img: info.picurl || info.picurl2,
+        desc: decodeName(info.desc || '').replace(/<br>/g, '\n'),
         meta: {
           playlistId: id
         },
-        author: cdlist.nickname,
-        play_count: formatPlayCount(cdlist.visitnum)
+        author: info.creator?.nick || info.host_nick || '',
+        total,
+        play_count: formatPlayCount(info.listennum || 0)
       }
     }
   },

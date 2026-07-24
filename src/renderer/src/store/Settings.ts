@@ -27,7 +27,6 @@ export interface SettingsState {
   }
   filenameTemplate?: string
   tagWriteOptions?: TagWriteOptions
-  autoUpdate?: boolean
   autoImportPlaylistOnOpen?: boolean
   suppressImportPrompt?: boolean
   lyricFontFamily?: string
@@ -61,7 +60,6 @@ export const useSettingsStore = defineStore(
         downloadLyrics: false,
         lyricFormat: 'word-by-word'
       },
-      autoUpdate: true,
       autoImportPlaylistOnOpen: false,
       suppressImportPrompt: false,
       lyricFontFamily: 'PingFangSC-Semibold',

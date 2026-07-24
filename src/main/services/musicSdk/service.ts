@@ -17,12 +17,39 @@ import musicSdk from '../../utils/musicSdk/index'
 import { musicCacheService } from '../musicCache'
 import download from '../../utils/downloadSongs'
 
+const wait = (time: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, time))
+
+async function requestWithRetry<T>(
+  operation: () => Promise<T>,
+  shouldRetry: (result: T) => boolean,
+  maxAttempts = 3
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const result = await operation()
+      if (!shouldRetry(result) || attempt === maxAttempts - 1) return result
+    } catch (error) {
+      lastError = error
+      if (attempt === maxAttempts - 1) throw error
+    }
+    await wait(250 + attempt * 250)
+  }
+  throw lastError
+}
+
 function main(source: string = 'wy') {
   if (source === 'all') return aggregateMain()
   const Api = musicSdk[source]
   return {
     async search({ keyword, page = 1, limit = 30 }: SearchArg) {
-      return (await Api.musicSearch.search(keyword, page, limit)) as Promise<SearchResult>
+      return await requestWithRetry<SearchResult>(
+        () => Api.musicSearch.search(keyword, page, limit),
+        (result) =>
+          page === 1 &&
+          Number(result?.total || 0) > 0 &&
+          (!Array.isArray(result?.list) || result.list.length === 0)
+      )
     },
 
     async tipSearch({ keyword }: { keyword: string }) {
@@ -182,10 +209,16 @@ function main(source: string = 'wy') {
       page?: number
       limit?: number
     }) {
-      const res =
-        source === 'wy'
-          ? await Api.songList.getList(sortId, tagId, page, limit)
-          : await Api.songList.getList(sortId, tagId, page)
+      const res = await requestWithRetry<any>(
+        () =>
+          source === 'wy'
+            ? Api.songList.getList(sortId, tagId, page, limit)
+            : Api.songList.getList(sortId, tagId, page),
+        (result) =>
+          page === 1 &&
+          Number(result?.total || 0) > 0 &&
+          (!Array.isArray(result?.list) || result.list.length === 0)
+      )
       return {
         category: { id: tagId || 'hot', name: tagId || '热门' },
         ...res
@@ -197,7 +230,13 @@ function main(source: string = 'wy') {
       if (source === 'kg' && /https?:\/\//.test(id)) {
         return (await Api.songList.getUserListDetail(id, page)) as PlaylistDetailResult
       }
-      return (await Api.songList.getListDetail(id, page)) as PlaylistDetailResult
+      return await requestWithRetry<PlaylistDetailResult>(
+        () => Api.songList.getListDetail(id, page),
+        (result) =>
+          page === 1 &&
+          Number(result?.total || 0) > 0 &&
+          (!Array.isArray(result?.list) || result.list.length === 0)
+      )
     },
 
     async downloadSingleSong({

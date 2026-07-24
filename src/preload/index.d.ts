@@ -8,7 +8,6 @@ import type {
 } from '../common/types/hotkeys'
 // 自定义 API 接口
 interface CustomAPI {
-  autoUpdater: any
   minimize: () => void
   maximize: () => void
   close: () => void

@@ -34,7 +34,6 @@ export default [
       'scripts/**', // 忽略脚本文件
       'src/common/utils/lyricUtils/**', // 忽略第三方歌词工具
       'src/renderer/public/**', // 忽略渲染进程公共目录
-      'update-server/**', // 子项目 Cloudflare Worker,有自己的构建
       'test-*.js' // 根目录临时调试脚本
     ]
   },

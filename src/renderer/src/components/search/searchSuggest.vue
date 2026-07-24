@@ -80,6 +80,7 @@ const SearchStore = useSearchStore()
 // 搜索建议数据
 const searchSuggestData = ref<any>({})
 const searchSuggestHeights = ref<number>(0)
+let suggestRequestId = 0
 
 // 搜索建议元素
 const directSearchRef = ref<HTMLElement | null>(null)
@@ -107,15 +108,27 @@ const searchSuggestionsType = {
 
 // 获取搜索建议
 const getSearchSuggest = async (keywords: string) => {
+  const keyword = keywords.trim()
+  const requestId = ++suggestRequestId
   searchSuggestData.value = {}
+  if (!keyword) {
+    nextTick(calcSearchSuggestHeights)
+    return
+  }
   try {
-    console.log('获取搜索建议', keywords)
-    // 使用网易云音乐的搜索建议API
+    const source = toRaw(LocalUserDetailStore().userSource.source || 'wy')
     const result = await window.api.music.requestSdk('tipSearch', {
-      source: toRaw(LocalUserDetailStore().userSource.source || 'wy'),
-      keyword: keywords
+      source,
+      keyword
     })
-    console.log('result', result)
+
+    if (
+      requestId !== suggestRequestId ||
+      keyword !== SearchStore.value.trim() ||
+      source !== (LocalUserDetailStore().userSource.source || 'wy')
+    ) {
+      return
+    }
 
     if (result) {
       const res = result
@@ -152,7 +165,12 @@ const calcSearchSuggestHeights = () => {
 watchDebounced(
   () => SearchStore.value,
   (val) => {
-    if (!val || val === '') return
+    if (!val || val === '') {
+      suggestRequestId += 1
+      searchSuggestData.value = {}
+      nextTick(calcSearchSuggestHeights)
+      return
+    }
     getSearchSuggest(val)
   },
   { debounce: 300 }

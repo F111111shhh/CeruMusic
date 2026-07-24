@@ -131,9 +131,6 @@ declare module 'vue' {
     TTag: typeof import('tdesign-vue-next')['Tag']
     TTextarea: typeof import('tdesign-vue-next')['Textarea']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']
-    UpdateExample: typeof import('./src/components/UpdateExample.vue')['default']
-    UpdateProgress: typeof import('./src/components/UpdateProgress.vue')['default']
-    UpdateSettings: typeof import('./src/components/Settings/UpdateSettings.vue')['default']
     UserCapsule: typeof import('./src/components/Auth/UserCapsule.vue')['default']
     Versions: typeof import('./src/components/Versions.vue')['default']
   }

@@ -164,30 +164,12 @@ export const searchItems: SearchItem[] = [
     id: 'about-version',
     category: 'about',
     title: '版本信息',
-    keywords: ['更新', 'update', 'version']
-  },
-  {
-    id: 'about-tech',
-    category: 'about',
-    title: '技术栈&服务&友商',
-    keywords: ['技术', 'tech']
-  },
-  {
-    id: 'about-team',
-    category: 'about',
-    title: '开发团队',
-    keywords: ['作者', 'developer']
+    keywords: ['版本', 'version', '运行环境']
   },
   {
     id: 'about-legal',
     category: 'about',
     title: '法律声明',
     keywords: ['协议', 'license']
-  },
-  {
-    id: 'about-contact',
-    category: 'about',
-    title: '联系方式',
-    keywords: ['qq', '群', '官网']
   }
 ]

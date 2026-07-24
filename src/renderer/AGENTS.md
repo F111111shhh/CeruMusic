@@ -11,10 +11,10 @@ src/renderer/
 ├── src/
 │   ├── api/           # REST wrappers (song lists, cloud sync)
 │   ├── components/    # Feature components (Play, Settings, Music, ContextMenu, etc.)
-│   ├── composables/   # Vue composables (auto-update)
+│   ├── composables/   # Vue composables shared across views
 │   ├── config/        # Logto + endpoint config
 │   ├── router/        # vue-router config + route preload logic
-│   ├── services/      # renderer-side services (music, auto-update, settings sync)
+│   ├── services/      # renderer-side services (music, settings sync)
 │   ├── store/         # Pinia stores (audio, auth, settings, download, etc.)
 │   ├── utils/         # Audio/color/playlist helpers, NSFW checks
 │   ├── views/         # Page-level components (home, music*, settings*, etc.)

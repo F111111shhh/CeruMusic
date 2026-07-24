@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from 'vue'
+import { ref, computed, watch, toRaw, onActivated, onDeactivated } from 'vue'
 import { searchValue } from '@renderer/store/search'
 import { downloadSingleSong } from '@renderer/utils/audio/download'
 import { LocalUserDetailStore } from '@renderer/store/LocalUserDetail'
@@ -53,27 +53,59 @@ const skeletonCount = playlistLimit
 const playlistTotal = ref(0)
 const search = searchValue()
 const router = useRouter()
-onActivated(async () => {
+let songRequestId = 0
+let songGeneration = 0
+let playlistRequestId = 0
+let songResultContext = ''
+let playlistResultContext = ''
+let stopSearchWatch: (() => void) | null = null
+let stopSourceWatch: (() => void) | null = null
+let stopTabWatch: (() => void) | null = null
+
+const stopWatchers = () => {
+  stopSearchWatch?.()
+  stopSourceWatch?.()
+  stopTabWatch?.()
+  stopSearchWatch = null
+  stopSourceWatch = null
+  stopTabWatch = null
+}
+
+const invalidateRequests = () => {
+  songRequestId += 1
+  songGeneration += 1
+  playlistRequestId += 1
+  loading.value = false
+  playlistLoading.value = false
+}
+
+const resultContext = (source: string, query: string) => `${source}\n${query.trim()}`
+
+onActivated(() => {
+  stopWatchers()
   const localUserStore = LocalUserDetailStore()
-  console.log('sqjsqj', search.getValue)
 
   if (search.getValue.trim() === '') {
-    console.log('跳转')
     router.push({ name: 'find' })
   }
-  watch(
-    search,
+
+  stopSearchWatch = watch(
+    () => [search.getValue, search.getFocus] as const,
     async () => {
-      if (search.getFocus == true || search.getValue.trim() == keyword.value.trim()) return
+      if (search.getFocus == true) return
       if (search.getValue.trim() === '') {
+        invalidateRequests()
         router.push({ name: 'find' })
         return
       }
+      const currentContext = resultContext(
+        localUserStore.userSource.source as unknown as string,
+        search.getValue
+      )
+      const loadedContext =
+        activeTab.value === 'songs' ? songResultContext : playlistResultContext
+      if (search.getValue.trim() === keyword.value.trim() && currentContext === loadedContext) return
       keyword.value = search.getValue
-      searchResults.value = []
-      playlistResults.value = []
-      currentPage.value = 1
-      playlistPage.value = 1
       if (activeTab.value === 'songs') {
         await performSearch(true)
       } else {
@@ -84,26 +116,21 @@ onActivated(async () => {
   )
 
   // 监听 userSource 变化，重新加载页面
-  watch(
-    () => localUserStore.userSource,
+  stopSourceWatch = watch(
+    () => localUserStore.userSource.source,
     async () => {
       if (keyword.value.trim()) {
-        searchResults.value = []
-        playlistResults.value = []
-        currentPage.value = 1
-        playlistPage.value = 1
         if (activeTab.value === 'songs') {
           await performSearch(true)
         } else {
           await fetchPlaylists(true)
         }
       }
-    },
-    { deep: true }
+    }
   )
 
   // 标签切换按需加载
-  watch(activeTab, async (val) => {
+  stopTabWatch = watch(activeTab, async (val) => {
     if (!keyword.value.trim()) return
     if (val === 'songs' && searchResults.value.length === 0) {
       await performSearch(true)
@@ -113,18 +140,30 @@ onActivated(async () => {
   })
 })
 
+onDeactivated(() => {
+  stopWatchers()
+  invalidateRequests()
+})
+
 // 执行搜索
 const performSearch = async (reset = false) => {
-  if (loading.value || !keyword.value.trim()) return
+  const requestKeyword = keyword.value.trim()
+  if ((!reset && loading.value) || !requestKeyword) return
 
   if (reset) {
+    songGeneration += 1
+    songResultContext = ''
     currentPage.value = 1
     searchResults.value = []
+    totalItems.value = 0
     hasMore.value = true
   }
 
   if (!hasMore.value) return
 
+  const requestId = ++songRequestId
+  const generation = songGeneration
+  const requestPage = currentPage.value
   loading.value = true
   try {
     const localUserStore = LocalUserDetailStore()
@@ -135,15 +174,25 @@ const performSearch = async (reset = false) => {
     const source = localUserStore.userSource.source as unknown as string
     const result = await window.api.music.requestSdk('search', {
       source,
-      keyword: keyword.value,
-      page: currentPage.value,
+      keyword: requestKeyword,
+      page: requestPage,
       limit: pageSize
     })
-    console.log('搜索结果', result)
+
+    if (
+      requestId !== songRequestId ||
+      generation !== songGeneration ||
+      requestKeyword !== keyword.value.trim() ||
+      source !== LocalUserDetailStore().userSource.source
+    ) {
+      return
+    }
+
+    songResultContext = resultContext(source, requestKeyword)
     totalItems.value = result.total || 0
     const newSongs = (result.list || []).map((song: any, index: number) => ({
       ...song,
-      id: song.songmid || `${currentPage.value}-${index}` // 确保每首歌都有唯一ID
+      id: song.songmid || `${requestPage}-${index}`
     }))
 
     if (reset) {
@@ -152,18 +201,22 @@ const performSearch = async (reset = false) => {
       searchResults.value = [...searchResults.value, ...newSongs]
     }
 
-    setPic((currentPage.value - 1) * pageSize, source)
-    currentPage.value += 1
-    hasMore.value = searchResults.value.length <= totalItems.value
+    void setPic((requestPage - 1) * pageSize, source, generation)
+    currentPage.value = requestPage + 1
+    hasMore.value =
+      totalItems.value > 0
+        ? searchResults.value.length < totalItems.value && newSongs.length > 0
+        : newSongs.length >= pageSize
   } catch (error) {
-    console.error('搜索失败:', error)
+    if (requestId === songRequestId) console.error('搜索失败:', error)
   } finally {
-    loading.value = false
+    if (requestId === songRequestId) loading.value = false
   }
 }
 
-async function setPic(offset: number, source: string) {
+async function setPic(offset: number, source: string, generation: number) {
   for (let i = offset; i < searchResults.value.length; i++) {
+    if (generation !== songGeneration) return
     const tempImg = searchResults.value[i].img
     if (tempImg) continue
     // 聚合模式下每首歌使用自身 source 获取封面
@@ -173,12 +226,14 @@ async function setPic(offset: number, source: string) {
         source: songSource,
         songInfo: toRaw(searchResults.value[i])
       })
+      if (generation !== songGeneration || !searchResults.value[i]) return
       if (typeof url !== 'object') {
         searchResults.value[i].img = url
       } else {
         searchResults.value[i].img = ''
       }
     } catch (e) {
+      if (generation !== songGeneration || !searchResults.value[i]) return
       searchResults.value[i].img = ''
       console.log('获取失败 index' + i, e)
     }
@@ -231,13 +286,18 @@ const handleScroll = (event: Event) => {
 
 // 执行歌单搜索（分页）
 const fetchPlaylists = async (reset = false) => {
-  if (playlistLoading.value || !keyword.value.trim()) return
+  const requestKeyword = keyword.value.trim()
+  if ((!reset && playlistLoading.value) || !requestKeyword) return
 
   if (reset) {
+    playlistResultContext = ''
     playlistPage.value = 1
     playlistResults.value = []
+    playlistTotal.value = 0
   }
 
+  const requestId = ++playlistRequestId
+  const requestPage = playlistPage.value
   playlistLoading.value = true
   try {
     const localUserStore = LocalUserDetailStore()
@@ -248,11 +308,20 @@ const fetchPlaylists = async (reset = false) => {
     const source = localUserStore.userSource.source as unknown as string
     const res = await window.api.music.requestSdk('searchPlaylist', {
       source,
-      keyword: keyword.value,
-      page: playlistPage.value,
+      keyword: requestKeyword,
+      page: requestPage,
       limit: playlistLimit
     })
-    console.log('歌单搜索结果', res)
+
+    if (
+      requestId !== playlistRequestId ||
+      requestKeyword !== keyword.value.trim() ||
+      source !== LocalUserDetailStore().userSource.source
+    ) {
+      return
+    }
+
+    playlistResultContext = resultContext(source, requestKeyword)
     playlistTotal.value = res?.total || 0
     const list = Array.isArray(res?.list) ? res.list : []
     const mapped = list.map((item: any) => ({
@@ -271,11 +340,11 @@ const fetchPlaylists = async (reset = false) => {
     } else {
       playlistResults.value = [...playlistResults.value, ...mapped]
     }
-    if (!reset) playlistPage.value += 1
+    playlistPage.value = requestPage + 1
   } catch (e) {
-    console.error('歌单搜索失败:', e)
+    if (requestId === playlistRequestId) console.error('歌单搜索失败:', e)
   } finally {
-    playlistLoading.value = false
+    if (requestId === playlistRequestId) playlistLoading.value = false
   }
 }
 

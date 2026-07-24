@@ -4,6 +4,7 @@ import type { SongList } from '@renderer/types/audio'
 import { LocalUserDetailStore } from '@renderer/store/LocalUserDetail'
 import { useSettingsStore } from '@renderer/store/Settings'
 import { calculateBestQuality } from '@common/utils/quality'
+import { putSongFirst } from './queueOrder'
 
 /**
  * 一起听场景下的"member 点歌"分流 —— addToPlaylistAndPlay/End/replacePlaylist
@@ -202,28 +203,8 @@ export async function addToPlaylistAndPlay(
     return
   }
   try {
-    // 获取当前正在播放的歌曲索引
-    const currentId = localUserStore.userInfo?.lastPlaySongId
-    const currentIndex =
-      currentId !== undefined && currentId !== null
-        ? localUserStore.list.findIndex((item: SongList) => item.songmid === currentId)
-        : -1
-
-    // 如果目标歌曲已在列表中，先移除以避免重复
-    const existingIndex = localUserStore.list.findIndex(
-      (item: SongList) => item.songmid === song.songmid
-    )
-    if (existingIndex !== -1) {
-      localUserStore.list.splice(existingIndex, 1)
-    }
-
-    if (currentIndex !== -1) {
-      // 正在播放：插入到当前歌曲的下一首
-      localUserStore.list.splice(currentIndex + 1, 0, song)
-    } else {
-      // 未在播放：添加到第一位
-      localUserStore.addSongToFirst(song)
-    }
+    // 立即播放的歌曲始终置顶，避免当前位置影响队列插入位置。
+    putSongFirst(localUserStore.list, song)
 
     // 播放插入的歌曲
     console.log('播放插入的歌曲:', song)

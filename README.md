@@ -1,380 +1,130 @@
-# Ceru Music（澜音）
+# Ceru Music（澜音）维护版
 
-一个跨平台的音乐播放器应用，支持基于合规插件获取公开音乐信息与播放功能。
+Ceru Music 是基于 Electron、Vue 3 和 TypeScript 开发的跨平台桌面音乐播放器。
+项目提供音乐检索、播放、歌单、本地音乐、下载管理及插件运行框架，本身不附带音乐源插件，也不存储或分发音乐文件。
 
-## 项目简介
+<img src="assets/image-20251003173109619.png" alt="Ceru Music 主界面" width="720" />
 
-Ceru Music 是基于 Electron 和 Vue 开发的跨平台桌面音乐播放器工具，**仅提供插件运行框架与播放功能**，不直接存储、提供任何音乐源文件。用户需通过自行选择、安装合规插件获取音乐相关数据，项目旨在为开发者提供桌面应用技术实践与学习案例，为用户提供合规的音乐播放工具框架。
+![Ceru Music 播放界面](assets/image-20251003173654569.png)
 
-<img src="assets/image-20251003173109619.png" alt="image-20251003173109619" style="zoom:33%;" />
+## 维护版说明
 
-![image-20251003173654569](assets/image-20251003173654569.png)
+本仓库在原项目代码基础上持续维护，重点是提高常用流程的稳定性并减少失效的外围依赖。
+这些说明描述长期行为，不绑定某个临时版本号。
 
-## Star History
+- 加强音乐搜索、搜索建议、发现页和歌单详情的请求重试、异常响应处理与并发隔离。
+- 修复 QQ 音乐搜索空结果误判、歌单详情接口失效以及大型歌单分页不完整的问题。
+- 修复快速切换关键词、音源或页面时，较早请求覆盖新结果的竞态问题。
+- 搜索框增加明确的清空入口；立即播放的新歌曲统一加入当前播放列表顶部。
+- 下载流程对缺失的文件大小、歌词或附加元数据进行容错，避免非关键数据导致整个任务失败。
+- 移除应用内自动更新、更新服务器及其相关界面。新版本通过 GitHub Releases 发布，由用户自行下载安装。
+- 关于页面仅保留运行环境、版本信息和法律声明，移除维护团队、技术宣传与联系方式展示。
 
-[![Star History Chart](https://api.star-history.com/svg?repos=timeshiftsauce/CeruMusic&type=Date)](https://www.star-history.com/#timeshiftsauce/CeruMusic&Date)
+## 数据兼容
 
-## 技术栈
+维护版沿用原应用的 `appId`、产品名称和 Electron 用户数据目录，以便升级后继续使用已有配置。
+因此，在同一台电脑上运行原版、维护版或免安装测试版时，可能会看到相同的音源插件、播放列表、播放记录、主题和下载设置。
 
-- **Electron**：用于构建跨平台桌面应用
-- **Vue 3**：前端框架，提供响应式 UI
-- **TypeScript**：增强代码可维护性和类型安全
-- **Pinia**：状态管理工具
-- **Vite**：快速的前端构建工具
-- **CeruPlugins**：音乐插件运行环境（仅提供框架，不包含默认插件）
+常见数据包括：
 
-## 项目结构
+- 渲染进程 `localStorage` 中的音源选择、当前播放列表、播放进度和界面设置。
+- Electron 用户数据目录中的插件、歌单数据库、本地音乐索引、下载记录和缓存。
+- 默认下载目录中的歌曲文件与歌词文件。
 
-<details>
-  <summary>点击查看目录结构</summary>
-
-```ast
-CeruMuisc/
-    ├── .github/
-    ├── scripts/
-    ├── src/
-    │   ├── common/
-    │   │   ├── types/
-    │   │   │   ├── playList.ts
-    │   │   │   └── songList.ts
-    │   │   ├── utils/
-    │   │   │   ├── lyricUtils/
-    │   │   │   │   ├── kg.js
-    │   │   │   │   └── util.ts
-    │   │   │   ├── common.ts
-    │   │   │   ├── nodejs.ts
-    │   │   │   └── renderer.ts
-    │   │   └── index.ts
-    │   ├── main/
-    │   │   ├── events/
-    │   │   │   ├── ai.ts
-    │   │   │   ├── autoUpdate.ts
-    │   │   │   ├── directorySettings.ts
-    │   │   │   ├── musicCache.ts
-    │   │   │   ├── pluginNotice.ts
-    │   │   │   └── songList.ts
-    │   │   ├── services/
-    │   │   │   ├── music/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── net-ease-service.ts
-    │   │   │   │   └── service-base.ts
-    │   │   │   ├── musicCache/
-    │   │   │   │   └── index.ts
-    │   │   │   ├── musicSdk/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── service.ts
-    │   │   │   │   └── type.ts
-    │   │   │   ├── plugin/
-    │   │   │   │   ├── manager/
-    │   │   │   │   │   ├── CeruMusicPluginHost.ts
-    │   │   │   │   │   └── converter-event-driven.ts
-    │   │   │   │   ├── index.ts
-    │   │   │   │   └── logger.ts
-    │   │   │   ├── songList/
-    │   │   │   │   ├── ManageSongList.ts
-    │   │   │   │   └── PlayListSongs.ts
-    │   │   │   ├── ai-service.ts
-    │   │   │   └── ConfigManager.ts
-    │   │   ├── utils/
-    │   │   │   ├── musicSdk/
-    │   │   │   │   ├── api-source-info.ts
-    │   │   │   │   ├── index.js
-    │   │   │   │   ├── options.js
-    │   │   │   │   └── utils.js
-    │   │   │   ├── array.ts
-    │   │   │   ├── index.ts
-    │   │   │   ├── object.ts
-    │   │   │   ├── path.ts
-    │   │   │   ├── request.js
-    │   │   │   └── utils.ts
-    │   │   ├── autoUpdate.ts
-    │   │   └── index.ts
-    │   ├── preload/
-    │   │   ├── index.d.ts
-    │   │   └── index.ts
-    │   ├── renderer/
-    │   │   ├── public/
-    │   │   │   ├── default-cover.png
-    │   │   │   ├── head.jpg
-    │   │   │   ├── logo.svg
-    │   │   │   ├── star.png
-    │   │   │   └── wldss.png
-    │   │   ├── src/
-    │   │   │   ├── api/
-    │   │   │   │   └── songList.ts
-    │   │   │   ├── components/
-    │   │   │   │   ├── AI/
-    │   │   │   │   │   └── FloatBall.vue
-    │   │   │   │   ├── ContextMenu/
-    │   │   │   │   │   ├── composables.ts
-    │   │   │   │   │   ├── ContextMenu.vue
-    │   │   │   │   │   ├── demo.vue
-    │   │   │   │   │   ├── index.ts
-    │   │   │   │   │   ├── README.md
-    │   │   │   │   │   ├── types.ts
-    │   │   │   │   │   └── utils.ts
-    │   │   │   │   ├── layout/
-    │   │   │   │   │   └── HomeLayout.vue
-    │   │   │   │   ├── Music/
-    │   │   │   │   │   └── SongVirtualList.vue
-    │   │   │   │   ├── Play/
-    │   │   │   │   │   ├── AudioVisualizer.vue
-    │   │   │   │   │   ├── FullPlay.vue
-    │   │   │   │   │   ├── GlobalAudio.vue
-    │   │   │   │   │   ├── PlaylistActions.vue
-    │   │   │   │   │   ├── PlaylistDrawer.vue
-    │   │   │   │   │   ├── PlayMusic.vue
-    │   │   │   │   │   └── ShaderBackground.vue
-    │   │   │   │   ├── Settings/
-    │   │   │   │   │   ├── AIFloatBallSettings.vue
-    │   │   │   │   │   ├── DirectorySettings.vue
-    │   │   │   │   │   ├── MusicCache.vue
-    │   │   │   │   │   ├── PlaylistSettings.vue
-    │   │   │   │   │   ├── plugins.vue
-    │   │   │   │   │   └── UpdateSettings.vue
-    │   │   │   │   ├── PluginNoticeDialog.vue
-    │   │   │   │   ├── ThemeSelector.vue
-    │   │   │   │   ├── TitleBarControls.vue
-    │   │   │   │   ├── UpdateExample.vue
-    │   │   │   │   ├── UpdateProgress.vue
-    │   │   │   │   └── Versions.vue
-    │   │   │   ├── composables/
-    │   │   │   │   └── useAutoUpdate.ts
-    │   │   │   ├── router/
-    │   │   │   │   └── index.ts
-    │   │   │   ├── services/
-    │   │   │   │   ├── music/
-    │   │   │   │   │   ├── index.ts
-    │   │   │   │   │   └── service-base.ts
-    │   │   │   │   └── autoUpdateService.ts
-    │   │   │   ├── store/
-    │   │   │   │   ├── ControlAudio.ts
-    │   │   │   │   ├── LocalUserDetail.ts
-    │   │   │   │   ├── search.ts
-    │   │   │   │   └── Settings.ts
-    │   │   │   ├── types/
-    │   │   │   │   ├── audio.ts
-    │   │   │   │   ├── Sources.ts
-    │   │   │   │   └── userInfo.ts
-    │   │   │   ├── utils/
-    │   │   │   │   ├── audio/
-    │   │   │   │   │   ├── audioManager.ts
-    │   │   │   │   │   ├── download.ts
-    │   │   │   │   │   ├── useSmtc.ts
-    │   │   │   │   │   └── volume.ts
-    │   │   │   │   ├── color/
-    │   │   │   │   │   ├── colorExtractor.ts
-    │   │   │   │   │   └── contrastColor.ts
-    │   │   │   │   └── playlist/
-    │   │   │   │       ├── playlistExportImport.ts
-    │   │   │   │       └── playlistManager.ts
-    │   │   │   ├── views/
-    │   │   │   │   ├── home/
-    │   │   │   │   │   └── index.vue
-    │   │   │   │   ├── music/
-    │   │   │   │   │   ├── find.vue
-    │   │   │   │   │   ├── list.vue
-    │   │   │   │   │   ├── local.vue
-    │   │   │   │   │   ├── recent.vue
-    │   │   │   │   │   └── search.vue
-    │   │   │   │   ├── settings/
-    │   │   │   │   │   └── index.vue
-    │   │   │   │   ├── welcome/
-    │   │   │   │   │   └── index.vue
-    │   │   │   │   └── ThemeDemo.vue
-    │   │   │   ├── App.vue
-    │   │   │   ├── env.d.ts
-    │   │   │   └── main.ts
-    │   │   ├── auto-imports.d.ts
-    │   │   ├── components.d.ts
-    │   │   └── index.html
-    │   └── types/
-    │       ├── musicCache.ts
-    │       └── songList.ts
-    ├── website/
-    │   ├── CeruUse.html
-    │   ├── design.html
-    │   ├── index.html
-    │   ├── pluginDev.html
-    │   ├── script.js
-    │   └── styles.css
-    ├── electron-builder.yml
-    ├── electron.vite.config.ts
-    ├── eslint.config.js
-    ├── LICENSE
-    ├── package-lock.json
-    ├── package.json
-    ├── qodana.sarif.json
-    ├── qodana.yaml
-    ├── README.md
-    ├── tsconfig.json
-    ├── tsconfig.node.json
-    ├── tsconfig.web.json
-    └── yarn.lock
-```
-
-</details>
+这种兼容行为可以避免升级丢失数据，但也意味着在测试版中修改或删除这些内容，可能影响同一用户数据目录下的其他 Ceru Music 构建。
 
 ## 主要功能
 
-- 提供插件加载与管理功能，支持通过合规插件获取公开音乐信息
-- 支持通过插件获取歌词、专辑封面等公开元数据
-- 支持虚拟滚动列表，优化大量数据渲染性能
-- 本地播放列表管理（仅存储用户手动创建的列表结构，不包含音乐文件）
-- **提示**：本地数据仅保存在用户设备本地，未进行云端备份，用户需自行备份以防止数据丢失
-- 精美的用户界面与动画效果
-- **插件生态框架**（插件需用户自行获取并确保合规性）
+- 多音源搜索、搜索建议、歌单发现、排行榜和歌单详情。
+- 当前播放列表管理、拖拽排序、播放模式、歌词和系统媒体控制。
+- 本地音乐扫描、标签编辑、本地歌单和歌单导入导出。
+- 下载队列、失败重试、目录与文件名规则设置。
+- 用户自行安装的合规音乐插件及多音质选择。
+- 主题、音频效果、桌面歌词和一起听等扩展功能。
 
-## 安装与使用
+部分在线功能依赖外部服务；服务不可用时，不影响本地音乐和已经保存在本机的数据。
 
-### 推荐开发环境
+## 技术栈
 
-- **IDE**: VS Code 或 WebStorm
-- **Node.js 版本**: 22 及以上
-- **包管理器**: **yarn**
-- **项目后端**: 欢迎对接[https://api.ceru.shiqianjiang.cn/api-docs](https://api.ceru.shiqianjiang.cn/api-docs)
+- Electron：桌面窗口、系统集成、IPC 和本地文件能力。
+- Vue 3：渲染进程界面与交互。
+- TypeScript：主进程、预加载脚本和渲染进程类型约束。
+- Pinia：播放状态、设置和用户数据状态管理。
+- Vite / electron-vite：开发服务器与生产构建。
+- better-sqlite3：本地歌单和音乐索引数据库。
+- CeruPlugins：用户插件运行与音源能力适配。
 
-### 项目设置
+## 项目结构
 
-1. 安装依赖：
+```text
+CeruMusic/
+├── src/
+│   ├── main/       # Electron 主进程、IPC、音乐 SDK、下载与插件服务
+│   ├── preload/    # 暴露给渲染进程的受控 API
+│   ├── renderer/   # Vue 界面、Pinia store、播放器和业务页面
+│   └── common/     # 主进程与渲染进程共享的类型和工具
+├── resources/      # 应用图标和运行时资源
+├── build/          # 安装器与平台构建配置
+├── docs/           # VitePress 文档
+├── scripts/        # 开发与发布辅助脚本
+├── electron-builder.yml
+└── package.json
+```
 
-   ```bash
-   yarn install
-   ```
+## 开发与构建
 
-2. 启动开发服务器：
+推荐使用 Node.js 22 和 Yarn。
 
-   ```bash
-   yarn dev
-   ```
+```bash
+# 安装依赖
+yarn install
 
-3. 构建应用：
+# 启动 Electron 开发环境
+yarn dev
 
-   ```bash
-   yarn build
-   ```
+# 类型检查并构建应用代码
+yarn build
 
-### 平台构建指令
+# 运行测试
+yarn test
 
-- Windows
+# 构建当前平台安装包
+yarn build:win
+yarn build:mac
+yarn build:linux
 
-  ```bash
-  yarn build:win
-  ```
+# 构建文档
+yarn docs:build
+```
 
-- macOS
+构建产物仅包含播放器和插件运行框架。音乐插件及其数据来源由用户自行选择，并应符合所在地区法律、数据来源平台协议和相关版权要求。
 
-  ```bash
-  yarn build:mac
-  ```
+## 发布
 
-- Linux
+仓库使用 Git 标签触发 GitHub Actions 跨平台构建，并将安装包上传到 GitHub Releases。
+应用不执行后台版本检查，也不会自行下载或安装更新。完整流程见 [发版指南](docs/guide/release.md)。
 
-  ```bash
-  yarn build:linux
-  ```
+## 文档
 
-> 提示：构建后的应用仅包含播放器框架，需用户自行配置合规插件方可获取音乐数据。
+- [使用与开发文档](docs/)
+- [插件开发规范](docs/guide/CeruMusicPluginDev.md)
+- [发版指南](docs/guide/release.md)
+- [常见问题](docs/guide/faq.md)
 
-## 文档与资源
+## 开源许可与第三方组件
 
-- 产品设计文档：涵盖项目架构、核心功能设计和开发规范（不含任何音乐数据源信息）。
-- [插件开发文档](https://ceru.docs.shiqianjiang.cn/guide/CeruMusicPluginDev.html)：仅提供插件开发技术规范，**明确要求插件开发者需遵守数据来源平台的用户协议与版权法**，禁止开发、传播获取非公开数据的插件。
+项目源代码遵循 [GNU AGPL v3.0](LICENSE)。该许可适用于本仓库代码，不构成对音乐、歌词、专辑封面、艺人信息或第三方服务数据的授权。
 
-## 开源许可
+歌词界面使用 [applemusic-like-lyrics](https://github.com/Steve-xmh/applemusic-like-lyrics)，其代码和分发需同时遵循对应的上游许可。
 
-本项目源代码遵循 **GNU AGPL v3.0**，仅授权用户对项目框架进行学习、修改与二次开发，不包含任何音乐数据相关授权。详情请参阅 [LICENSE](./LICENSE) 文件，使用前请务必阅读许可条款。
+## 合规与免责声明
 
-## 第三方组件与致谢
+- 本项目是播放器与插件运行框架，不提供音乐文件或默认音乐源插件。
+- 用户应确保所安装插件、访问的数据及下载行为具有合法授权，并遵守第三方平台协议。
+- 不得将本项目与侵权插件、未授权内容或其他违法用途捆绑传播。
+- 本地配置、播放记录、歌单和缓存由用户自行保管；测试、卸载或清理数据前请先备份重要内容。
+- 软件按开源许可证“原样”提供，不对外部服务持续可用性或第三方数据准确性作保证。
 
-- 歌词组件使用自 [applemusic-like-lyrics](https://github.com/Steve-xmh/applemusic-like-lyrics) 项目，感谢 Steve-xmh 及其贡献者的出色工作。该组件遵循其上游许可（AGPL-3.0），相关使用与分发需符合其许可要求。
+## 贡献
 
-## 贡献指南
-
-欢迎开发者贡献代码与反馈建议，贡献内容需符合以下要求：
-
-1. 仅涉及播放器框架功能优化、bug 修复、文档完善，不包含任何音乐数据源相关代码。
-2. 遵循 [Git 提交规范](#) 并确保代码符合项目风格指南。
-3. 贡献的代码需无第三方版权纠纷，且不违反开源许可协议。
-
-## 联系方式
-
-如有技术问题或合作意向
-可通过如下方式联系
-
-- QQ: 2115295703
-- 微信：13600973542
-- 邮箱：sqj@shiqianjiang.cn
-
-## 项目开发者
-
-- **时迁酱**：产品总体设计与开发
-
-  <img src="assets/head.jpg" alt="head.jpg (940×940)" style="zoom:15%;" />
-
-- **无聊的霜霜**：首页设计&Ai助手
-
-  <img src="assets/image-20250827181604432.png" alt="image-20250827181604432" style="zoom:25%;" />
-
-- **Star**：**插件管理**相关功能&部分接口封装
-
-  <img src="assets/image-20250827181535681.png" alt="image-20250827181535681" style="zoom:25%;" />
-
-- **lemon**：修复部分bug&新增部分功能（简称：打杂）
-
-  <img src="assets/image-20260102767362357.jpg" alt="image-20260102767362357" style="zoom:25%;" />
-
-**Tips**: 排名不分先后
-
-# 法律声明与免责条款
-
-**重要提示：使用本项目前，请务必仔细阅读本条款，使用本项目即视为你已充分理解并同意本条款全部内容。**
-
-### 一、定义约定
-
-- “GNU AGPL v3.0”：指 Ceru Music（澜音）桌面播放器框架及源代码，不包含任何第三方插件或音乐数据。
-- “**用户**”：指下载、安装、使用本项目的个人或组织。
-- “**合规插件**”：指符合数据来源平台用户协议、不侵犯第三方版权、不获取非公开数据的插件。
-- “**版权内容**”：指包括但不限于音乐文件、歌词、专辑封面、艺人信息等受著作权法保护的内容。
-
-### 二、数据与内容责任
-
-1. 本项目**不直接获取、存储、传输任何音乐数据或版权内容**，仅提供插件运行框架。用户通过插件获取的所有数据，其合法性、准确性由插件提供者及用户**自行负责**，本项目不承担任何责任。
-2. 若用户使用的插件存在获取非公开数据、侵犯第三方版权等违规行为，相关法律责任由用户及插件提供者承担，与本项目无关。
-3. 本项目使用的字体、图片等素材，均来自开源社区或已获得合法授权，若存在侵权请联系项目维护者立即移除，本项目将积极配合处理。
-
-### 三、版权合规要求
-
-1. 用户承诺：使用本项目时，仅通过合规插件获取音乐相关信息，且获取、使用版权内容的行为符合**《中华人民共和国著作权法》**及相关法律法规，不侵犯**任何第三方**合法权益。
-2. 用户需知晓：任何未经授权下载、传播、使用受版权保护的音乐文件的行为，均可能构成侵权，需自行承担法律后果。
-3. 本项目倡导 “尊重版权、支持正版”，提醒用户通过官方音乐平台获取授权音乐服务。
-
-### 四、免责声明
-
-1. 因用户使用非合规插件、违反法律法规或第三方协议导致的任何法律责任（包括但不限于侵权赔偿、行政处罚），均由用户自行承担，本项目不承担任何直接、间接、连带或衍生责任。
-2. 因本项目框架本身的 **bug** 导致的用户设备故障、数据丢失，本项目仅承担在合理范围内的技术修复责任，不承担由此产生的间接损失（如商誉损失、业务中断损失等）。
-3. 本项目为开源学习项目，不提供商业服务，对用户使用本项目的效果不做任何明示或暗示的保证。
-
-### 五、使用限制
-
-1. 本项目仅允许用于**非商业、纯技术学习目的**，禁止用于任何商业运营、盈利活动，禁止修改后用于侵犯第三方权益的场景。
-2. 禁止在违反当地法律法规、本声明或第三方协议的前提下使用本项目，若用户所在地区禁止此类工具的使用，应立即停止使用。
-3. 禁止将本项目源代码或构建后的应用，与违规插件捆绑传播，禁止利用本项目从事任何违法违规活动。
-
-### 六、其他
-
-1. 本声明的效力、解释及适用，均适用中华人民共和国法律（不含港澳台地区法律）。
-2. 若用户与本项目维护者就本声明产生争议，应首先通过友好协商解决；协商不成的，任何一方均有权向本项目维护者所在地有管辖权的人民法院提起诉讼。
-
-## 赞助
-
-感谢**伤心的云**提供的16h-16g长期支持
-
-> 伤心的云 服务器 低至1元/月 1000mbps 超高带宽
->
-> 16h-16g 38.99元/月 独立ip
->
-> [点击前往查看](https://sadidc.com/aff/VQAXGBZT)
-
-若您认可本项目的技术价值，欢迎通过以下方式支持开发者（仅用于项目技术维护与迭代）：
-<img src="assets/image-20250827175356006.png" alt="赞助方式1" style="zoom:33%;" /><img src="assets/image-20250827175547444.png" alt="赞助方式2" style="zoom: 33%;" />
+欢迎提交播放器框架优化、稳定性修复、测试和文档改进。提交前请运行类型检查与相关测试，并避免提交账号凭据、私人插件、缓存、下载文件或其他仅属于本机的数据。
