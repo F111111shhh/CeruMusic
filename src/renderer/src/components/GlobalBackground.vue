@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useSettingsStore } from '@renderer/store/Settings'
 import { storeToRefs } from 'pinia'
 
@@ -17,16 +17,41 @@ const bgBrightness = computed(() => bgSettings.value?.brightness ?? 0.8)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 
+const syncVideoPlayback = () => {
+  const video = videoRef.value
+  if (!video) return
+
+  if (!isEnabled.value || bgType.value !== 'video' || document.hidden) {
+    video.pause()
+    return
+  }
+
+  video.play().catch((error) => console.error('Video auto-play failed:', error))
+}
+
+const handleVisibilityChange = () => syncVideoPlayback()
+
 watch(
   [bgType, bgUrl, isEnabled],
   ([type, _url, enabled]) => {
-    if (enabled && type === 'video' && videoRef.value) {
-      videoRef.value.load()
-      videoRef.value.play().catch((e) => console.error('Video auto-play failed:', e))
+    const video = videoRef.value
+    if (enabled && type === 'video' && video) {
+      video.load()
     }
+    syncVideoPlayback()
   },
-  { immediate: true }
+  { immediate: true, flush: 'post' }
 )
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  syncVideoPlayback()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  videoRef.value?.pause()
+})
 
 const appContainerStyle = computed(() => {
   if (isEnabled.value) {

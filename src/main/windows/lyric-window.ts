@@ -73,6 +73,8 @@ class LyricWindow {
    * @returns BrowserWindow | null
    */
   create(): BrowserWindow | null {
+    if (this.win && !this.win.isDestroyed()) return this.win
+
     const { width, height, x, y } = lyricStore.get()
     this.win = createWindow({
       width: width || 800,
@@ -103,8 +105,6 @@ class LyricWindow {
       fullscreenable: false
     })
     if (!this.win) return null
-    // 禁用背景节流，防止后台时歌词更新延迟
-    this.win.webContents.setBackgroundThrottling(false)
     // 加载地址（开发环境用项目根目录，生产用打包后的相对路径）
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
       this.win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/#/desktop-lyric`)
@@ -121,6 +121,12 @@ class LyricWindow {
    */
   getWin(): BrowserWindow | null {
     return this.win
+  }
+
+  destroy(): void {
+    const win = this.win
+    this.win = null
+    if (win && !win.isDestroyed()) win.destroy()
   }
 }
 

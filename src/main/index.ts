@@ -295,7 +295,10 @@ function setupTray(): void {
       updateTrayMenu()
     })
     ipcMain.on('change-desktop-lyric', () => {
-      updateTrayMenu()
+      setImmediate(updateTrayMenu)
+    })
+    ipcMain.on('closeDesktopLyric', () => {
+      setImmediate(updateTrayMenu)
     })
     g.__ceru_tray_ipc_bound__ = true
   }
@@ -601,8 +604,7 @@ function createWindow(): void {
       sandbox: false,
       webSecurity: false,
       nodeIntegration: true,
-      contextIsolation: false,
-      backgroundThrottling: false
+      contextIsolation: false
     }
   } as BrowserWindowConstructorOptions
 
@@ -744,9 +746,6 @@ function createWindow(): void {
 
   InitEventServices(mainWindow)
   initPluginNotice(mainWindow)
-  // 设置背景节流
-  mainWindow.webContents.setBackgroundThrottling(false)
-
   // === 窗口标题 / 任务栏-Dock 进度条 IPC ===
   // 启动时 BrowserWindow 默认 title 来自 index.html 的 <title> 或 productName,
   // 渲染端会在启动后立即推送一次"软件名"作为兜底,有歌时切换为"歌名 - 歌手"。
@@ -914,7 +913,6 @@ app.whenReady().then(async () => {
   })
   // 初始化桌面歌词
   if (mainWindow) {
-    lyricWindow.create()
     initLyricIpc(mainWindow)
     const startArg = process.argv?.find((a) => /\.(cmpl|cpl)$/i.test(a))
     if (startArg) queueOpenPlaylist(startArg)

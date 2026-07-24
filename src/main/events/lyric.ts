@@ -55,23 +55,33 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
     lyricWin = lyricWindow.create()
     return lyricWin
   }
+  let lyricLockState = !!lyricStore.get().isLock
+  let lyricOpenState = !!lyricStore.get().isOpen
+  let lyricPlaybackActive = false
+  const updateMainWindowBackgroundThrottling = () => {
+    if (!mainWin || mainWin.isDestroyed() || mainWin.webContents.isDestroyed()) return
+    mainWin.webContents.setBackgroundThrottling(!(lyricOpenState && lyricPlaybackActive))
+  }
 
   // 切换桌面歌词
   ipcMain.on('change-desktop-lyric', (_event, val: boolean) => {
-    lyricStore.set({ isOpen: !!val })
     lyricOpenState = !!val
-    mainWin?.webContents.send('desktop-lyric-open-change', !!val)
+    lyricStore.set({ isOpen: lyricOpenState })
+    updateMainWindowBackgroundThrottling()
+    mainWin?.webContents.send('desktop-lyric-open-change', lyricOpenState)
 
-    const lyricWin = val ? ensureLyricWin() : getLyricWin()
+    if (!lyricOpenState) {
+      lyricWindow.destroy()
+      return
+    }
+
+    const lyricWin = ensureLyricWin()
     if (!lyricWin || lyricWin.isDestroyed() || lyricWin.webContents.isDestroyed()) return
-
-    if (val) {
+    if (!lyricWin.webContents.isLoadingMainFrame()) {
       lyricWin.show()
       lyricWin.setAlwaysOnTop(true, 'screen-saver')
-    } else {
-      lyricWin.hide()
+      lyricWin.webContents.send('desktop-lyric-open-change', true)
     }
-    lyricWin.webContents.send('desktop-lyric-open-change', !!val)
   })
   ipcMain.on('win-show', () => {
     mainWin?.show()
@@ -112,6 +122,7 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
 
   // 当前行进度（用于控制 30% 时机的延迟替换）
   ipcMain.on('play-lyric-progress', (_, payload: { index: number; progress: number }) => {
+    if (!lyricOpenState) return
     const lyricWin = getLyricWin()
     if (!payload || !lyricWin || lyricWin.isDestroyed() || lyricWin.webContents.isDestroyed()) {
       return
@@ -121,6 +132,8 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
 
   // 播放状态更改（播放/暂停）
   ipcMain.on('play-status-change', (_, status: boolean) => {
+    lyricPlaybackActive = !!status
+    updateMainWindowBackgroundThrottling()
     menuBarLyric.setPlayStatus(status)
     const lyricWin = getLyricWin()
     if (!lyricWin || lyricWin.isDestroyed() || lyricWin.webContents.isDestroyed()) return
@@ -212,29 +225,27 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
 
   // 关闭桌面歌词
   ipcMain.on('closeDesktopLyric', () => {
-    const lyricWin = getLyricWin()
-    lyricWin?.hide()
     lyricOpenState = false
     lyricStore.set({ isOpen: lyricOpenState })
+    updateMainWindowBackgroundThrottling()
+    lyricWindow.destroy()
+    mainWin?.webContents.send('desktop-lyric-open-change', false)
     mainWin?.webContents.send('closeDesktopLyric')
   })
 
   // 锁定/解锁桌面歌词
-  let lyricLockState = !!lyricStore.get().isLock
-  let lyricOpenState = !!lyricStore.get().isOpen
   ipcMain.on('toogleDesktopLyricLock', (_, isLock: boolean) => {
-    const lyricWin = getLyricWin()
-    if (!lyricWin) return
     lyricLockState = !!isLock
     lyricStore.set({ isLock: lyricLockState })
-    // 是否穿透
-    if (lyricLockState) {
-      lyricWin.setIgnoreMouseEvents(true, { forward: true })
-    } else {
-      lyricWin.setIgnoreMouseEvents(false)
+    const lyricWin = getLyricWin()
+    if (lyricWin && !lyricWin.isDestroyed() && !lyricWin.webContents.isDestroyed()) {
+      if (lyricLockState) {
+        lyricWin.setIgnoreMouseEvents(true, { forward: true })
+      } else {
+        lyricWin.setIgnoreMouseEvents(false)
+      }
+      lyricWin.webContents.send('toogleDesktopLyricLock', lyricLockState)
     }
-    // 广播到桌面歌词窗口与主窗口，保持两端状态一致
-    lyricWin.webContents.send('toogleDesktopLyricLock', lyricLockState)
     mainWin?.webContents.send('toogleDesktopLyricLock', lyricLockState)
   })
 
@@ -250,6 +261,9 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
       if (lyricWin && !lyricWin.isDestroyed()) {
         if (lyricOpenState) {
           setTimeout(() => {
+            if (!lyricOpenState || lyricWin.isDestroyed() || lyricWin.webContents.isDestroyed()) {
+              return
+            }
             lyricWin.show()
             lyricWin.setAlwaysOnTop(true, 'screen-saver')
           }, 1000)
@@ -264,6 +278,9 @@ const initLyricIpc = (mainWin?: BrowserWindow | null): void => {
     } catch {}
     mainWin?.webContents.send('lyric-window-ready')
   })
+
+  updateMainWindowBackgroundThrottling()
+  if (lyricOpenState) ensureLyricWin()
 
   // 检查是否是子文件夹
   ipcMain.handle('check-if-subfolder', (_, localFilesPath: string[], selectedDir: string) => {

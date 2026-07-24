@@ -91,6 +91,10 @@ const routes: RouteRecordRaw[] = [
   }
 ]
 
+const auxiliaryRoutePaths = new Set(['/desktop-lyric', '/recognition-worker'])
+
+const getCurrentRoutePath = () => window.location.hash.replace(/^#/, '').split('?')[0] || '/'
+
 function setAnimate(routerObj: RouteRecordRaw[]) {
   for (let i = 0; i < routerObj.length; i++) {
     const item = routerObj[i]
@@ -178,7 +182,10 @@ const startPreload = () => {
     '/recognition-worker'
   ]
   const flat = flattenRoutes(routes).filter(
-    (route) => route.component && typeof route.component === 'function'
+    (route) =>
+      route.component &&
+      typeof route.component === 'function' &&
+      !auxiliaryRoutePaths.has(route.path)
   )
   const queue = flat.sort((a, b) => {
     const ai = priorityOrder.indexOf(a.path)
@@ -245,7 +252,7 @@ const startPreload = () => {
   }
 }
 
-// 启动预加载
-startPreload()
+// Auxiliary windows should only load their own route, never the full application bundle.
+if (!auxiliaryRoutePaths.has(getCurrentRoutePath())) startPreload()
 
 export default router

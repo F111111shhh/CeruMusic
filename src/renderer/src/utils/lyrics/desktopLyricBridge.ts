@@ -7,6 +7,7 @@ import { LocalUserDetailStore } from '@renderer/store/LocalUserDetail'
 interface LyricWord {
   word: string
 }
+
 interface LyricLine {
   startTime: number
   endTime: number
@@ -14,9 +15,14 @@ interface LyricLine {
   translatedLyric?: string
 }
 
+const DESKTOP_LYRIC_SYNC_MS = 250
+const MENU_BAR_LYRIC_SYNC_MS = 500
+
 let installed = false
-// 保存定时器ID以便清理
-let playStateInterval: number | null = null
+let installId = 0
+let updateTimer: number | null = null
+let stopWatchers: Array<() => void> = []
+let ipcListeners: Array<{ channel: string; listener: (...args: any[]) => void }> = []
 
 function buildLyricPayload(lines: LyricLine[]) {
   return JSON.parse(JSON.stringify(lines || []))
@@ -24,19 +30,32 @@ function buildLyricPayload(lines: LyricLine[]) {
 
 function computeLyricIndex(timeMs: number, lines: LyricLine[]) {
   if (!lines || lines.length === 0) return -1
-  const t = timeMs
-  const i = lines.findIndex((l) => t >= l.startTime && t < l.endTime)
-  if (i !== -1) return i
-  for (let j = lines.length - 1; j >= 0; j--) {
-    if (t >= lines[j].startTime) return j
+  const index = lines.findIndex((line) => timeMs >= line.startTime && timeMs < line.endTime)
+  if (index !== -1) return index
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (timeMs >= lines[i].startTime) return i
   }
   return -1
 }
 
+function clearUpdateTimer() {
+  if (updateTimer !== null) {
+    window.clearTimeout(updateTimer)
+    updateTimer = null
+  }
+}
+
+function getIpcRenderer() {
+  return (window as any)?.electron?.ipcRenderer
+}
+
 export function installDesktopLyricBridge() {
   if (installed) return
-  installed = true
 
+  installed = true
+  const currentInstallId = ++installId
+  const isCurrentInstall = () => installed && currentInstallId === installId
   const controlAudio = ControlAudioStore()
   const globalPlayStatus = useGlobalPlayStatusStore()
   const { player } = storeToRefs(globalPlayStatus)
@@ -44,158 +63,201 @@ export function installDesktopLyricBridge() {
   const { userInfo } = storeToRefs(localUserStore)
 
   let lastIndex = -1
+  let desktopLyricOpen = false
+  let lastPlayState: boolean | undefined
 
-  // 监听歌词变化
-  watch(
-    () => player.value.lyrics.lines,
-    (lines) => {
-      lastIndex = -1
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-change', buildLyricPayload(lines))
-      // 提示前端进入准备态
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-index', -1)
-    },
-    { immediate: true }
-  )
+  const getCurrentTimeMs = () => {
+    const audio = controlAudio.Audio
+    let milliseconds = Math.round((audio?.currentTime || 0) * 1000)
+    if (milliseconds > 0) return milliseconds
 
-  // 监听歌曲信息变化（同步歌名）
-  watch(
-    () => player.value.songInfo,
-    (song) => {
-      try {
-        const name = (song as any)?.name || ''
-        const artist = (song as any)?.singer || ''
-        if (name || artist) {
-          ;(window as any)?.electron?.ipcRenderer?.send?.('play-song-change', { name, artist })
-        }
-      } catch {}
-    },
-    { immediate: true }
-  )
+    const currentSong = player.value.songInfo as any
+    const lastSongId = userInfo.value?.lastPlaySongId
+    const songId = currentSong?.songmid
+    const restoredMilliseconds = Math.round(Number(userInfo.value?.currentTime || 0) * 1000)
+    if (lastSongId && songId && lastSongId === songId && restoredMilliseconds > 0) {
+      milliseconds = restoredMilliseconds
+    }
+    return milliseconds
+  }
 
-  // 播放状态推送
-  let lastPlayState: any = undefined
-  const checkPlayState = () => {
-    if (controlAudio.Audio.isPlay !== lastPlayState) {
-      lastPlayState = controlAudio.Audio.isPlay
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-status-change', lastPlayState)
+  const getLyricProgress = () => {
+    const lines = (player.value.lyrics?.lines as LyricLine[]) || []
+    const currentMs = getCurrentTimeMs()
+    const index = computeLyricIndex(currentMs, lines)
+    let progress = 0
+
+    if (index >= 0 && lines[index]) {
+      const line = lines[index]
+      const duration = Math.max(1, (line.endTime ?? line.startTime + 1) - line.startTime)
+      progress = Math.min(1, Math.max(0, (currentMs - line.startTime) / duration))
+    }
+
+    return { currentMs, index, progress, lines }
+  }
+
+  const sendProgress = (index: number, progress: number, currentMs: number) => {
+    getIpcRenderer()?.send?.('play-lyric-progress', {
+      index,
+      progress,
+      currentMs,
+      timestamp: performance.now()
+    })
+  }
+
+  const syncLyricProgress = (sendDesktopProgress: boolean) => {
+    if (!isCurrentInstall()) return
+
+    const { currentMs, index, progress } = getLyricProgress()
+    if (sendDesktopProgress) sendProgress(index, progress, currentMs)
+
+    if (index !== lastIndex) {
+      lastIndex = index
+      getIpcRenderer()?.send?.('play-lyric-index', index)
     }
   }
-  // 立即检查一次
-  watch(() => controlAudio.Audio.isPlay, checkPlayState, { immediate: true })
 
-  // 快照推送函数：在窗口准备就绪或切换显示时调用，保证首屏不空
   const pushSnapshot = () => {
+    if (!isCurrentInstall()) return
+
     try {
       const currentSong = player.value.songInfo as any
       const name = currentSong?.name || ''
       const artist = currentSong?.singer || ''
       if (name || artist) {
-        ;(window as any)?.electron?.ipcRenderer?.send?.('play-song-change', { name, artist })
+        getIpcRenderer()?.send?.('play-song-change', { name, artist })
       }
-      const currentLines = (player.value.lyrics?.lines as any[]) || []
-      ;(window as any)?.electron?.ipcRenderer?.send?.(
-        'play-lyric-change',
-        buildLyricPayload(currentLines)
-      )
-      const a = controlAudio.Audio
-      let ms = Math.round((a?.currentTime || 0) * 1000)
-      if (ms <= 0) {
-        const lastId = userInfo.value?.lastPlaySongId
-        const songId = currentSong?.songmid
-        const restoreMs = Math.round(Number(userInfo.value?.currentTime || 0) * 1000)
-        if (lastId && songId && lastId === songId && restoreMs > 0) {
-          ms = restoreMs
-        }
-      }
-      const idx = computeLyricIndex(ms, currentLines as any)
-      lastIndex = idx
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-index', idx)
-      let progress = 0
-      if (idx >= 0 && currentLines[idx]) {
-        const line = currentLines[idx] as any
-        const dur = Math.max(1, (line.endTime ?? line.startTime + 1) - line.startTime)
-        progress = Math.min(1, Math.max(0, (ms - line.startTime) / dur))
-      }
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-progress', {
-        index: idx,
-        progress,
-        currentMs: ms,
-        timestamp: performance.now()
-      })
-      ;(window as any)?.electron?.ipcRenderer?.send?.(
-        'play-status-change',
-        !!controlAudio.Audio.isPlay
-      )
+
+      const { currentMs, index, progress, lines } = getLyricProgress()
+      getIpcRenderer()?.send?.('play-lyric-change', buildLyricPayload(lines))
+      lastIndex = index
+      getIpcRenderer()?.send?.('play-lyric-index', index)
+      if (desktopLyricOpen) sendProgress(index, progress, currentMs)
+      getIpcRenderer()?.send?.('play-status-change', !!controlAudio.Audio.isPlay)
     } catch {}
   }
 
-  // 首次安装时主动推送一次当前状态
-  pushSnapshot()
+  const scheduleUpdates = () => {
+    clearUpdateTimer()
+    if (!isCurrentInstall() || !controlAudio.Audio.isPlay) return
 
-  // 当桌面歌词窗口声明“准备就绪”时，再次推送快照，避免页面未加载时丢包
-  ;(window as any)?.electron?.ipcRenderer?.on?.('lyric-window-ready', () => {
-    pushSnapshot()
-  })
-  // 当切换显示为开启时，补一次快照
-  ;(window as any)?.electron?.ipcRenderer?.on?.(
-    'desktop-lyric-open-change',
-    (_: any, open: boolean) => {
-      if (open) pushSnapshot()
+    const interval = desktopLyricOpen ? DESKTOP_LYRIC_SYNC_MS : MENU_BAR_LYRIC_SYNC_MS
+    const update = () => {
+      if (!isCurrentInstall() || !controlAudio.Audio.isPlay) {
+        clearUpdateTimer()
+        return
+      }
+
+      syncLyricProgress(desktopLyricOpen)
+      updateTimer = window.setTimeout(
+        update,
+        desktopLyricOpen ? DESKTOP_LYRIC_SYNC_MS : MENU_BAR_LYRIC_SYNC_MS
+      )
     }
+
+    syncLyricProgress(desktopLyricOpen)
+    updateTimer = window.setTimeout(update, interval)
+  }
+
+  const setDesktopLyricOpen = (open: boolean, shouldPushSnapshot = true) => {
+    desktopLyricOpen = !!open
+    if (desktopLyricOpen && shouldPushSnapshot) pushSnapshot()
+    scheduleUpdates()
+  }
+
+  const addIpcListener = (channel: string, listener: (...args: any[]) => void) => {
+    const ipcRenderer = getIpcRenderer()
+    if (!ipcRenderer?.on) return
+
+    ipcRenderer.on(channel, listener)
+    ipcListeners.push({ channel, listener })
+  }
+
+  stopWatchers.push(
+    watch(
+      () => player.value.lyrics.lines,
+      (lines) => {
+        lastIndex = -1
+        getIpcRenderer()?.send?.('play-lyric-change', buildLyricPayload(lines as LyricLine[]))
+        getIpcRenderer()?.send?.('play-lyric-index', -1)
+        scheduleUpdates()
+      },
+      { immediate: true }
+    )
   )
 
-  // 使用 RAF 替代 setInterval
-  const loop = () => {
-    if (!installed) return
+  stopWatchers.push(
+    watch(
+      () => player.value.songInfo,
+      (song) => {
+        const name = (song as any)?.name || ''
+        const artist = (song as any)?.singer || ''
+        if (name || artist) getIpcRenderer()?.send?.('play-song-change', { name, artist })
+      },
+      { immediate: true }
+    )
+  )
 
-    const a = controlAudio.Audio
-    let ms = Math.round((a?.currentTime || 0) * 1000)
-    if (ms <= 0) {
-      const currentSong = player.value.songInfo as any
-      const lastId = userInfo.value?.lastPlaySongId
-      const songId = currentSong?.songmid
-      const restoreMs = Math.round(Number(userInfo.value?.currentTime || 0) * 1000)
-      if (lastId && songId && lastId === songId && restoreMs > 0) {
-        ms = restoreMs
-      }
-    }
-    const currentLines = player.value.lyrics.lines || []
-    const idx = computeLyricIndex(ms, currentLines)
+  stopWatchers.push(
+    watch(
+      () => controlAudio.Audio.isPlay,
+      (isPlaying) => {
+        if (isPlaying !== lastPlayState) {
+          lastPlayState = isPlaying
+          getIpcRenderer()?.send?.('play-status-change', isPlaying)
+        }
+        if (!isPlaying) syncLyricProgress(desktopLyricOpen)
+        scheduleUpdates()
+      },
+      { immediate: true }
+    )
+  )
 
-    // 计算当前行进度（0~1）
-    let progress = 0
-    if (idx >= 0 && currentLines[idx]) {
-      const line = currentLines[idx]
-      const dur = Math.max(1, (line.endTime ?? line.startTime + 1) - line.startTime)
-      progress = Math.min(1, Math.max(0, (ms - line.startTime) / dur))
-    }
-
-    // 首先推送进度，便于前端做 30% 判定（避免 setTimeout 带来的抖动）
-    ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-progress', {
-      index: idx,
-      progress,
-      currentMs: ms,
-      timestamp: performance.now()
+  stopWatchers.push(
+    controlAudio.subscribe('seeked', () => {
+      syncLyricProgress(desktopLyricOpen)
+      scheduleUpdates()
     })
+  )
 
-    // 当行变化时，推送 index（立即切换高亮）
-    if (idx !== lastIndex) {
-      lastIndex = idx
-      ;(window as any)?.electron?.ipcRenderer?.send?.('play-lyric-index', idx)
-    }
-    playStateInterval = requestAnimationFrame(loop)
-  }
+  addIpcListener('lyric-window-ready', () => {
+    pushSnapshot()
+    void Promise.resolve(getIpcRenderer()?.invoke?.('get-lyric-open-state'))
+      .then((open) => {
+        if (typeof open === 'boolean' && isCurrentInstall()) setDesktopLyricOpen(open)
+      })
+      .catch(() => {})
+  })
 
-  playStateInterval = requestAnimationFrame(loop)
+  addIpcListener('desktop-lyric-open-change', (_event: unknown, open: boolean) => {
+    setDesktopLyricOpen(open)
+  })
+
+  addIpcListener('closeDesktopLyric', () => {
+    setDesktopLyricOpen(false, false)
+  })
+
+  pushSnapshot()
+  void Promise.resolve(getIpcRenderer()?.invoke?.('get-lyric-open-state'))
+    .then((open) => {
+      if (typeof open === 'boolean' && isCurrentInstall()) setDesktopLyricOpen(open)
+    })
+    .catch(() => {})
 }
 
-// 导出清理函数，用于清除所有定时器
 export function uninstallDesktopLyricBridge() {
-  if (playStateInterval !== null) {
-    cancelAnimationFrame(playStateInterval)
-    playStateInterval = null
-  }
+  if (!installed) return
 
   installed = false
-  console.log('Desktop lyric bridge uninstalled')
+  installId++
+  clearUpdateTimer()
+
+  stopWatchers.forEach((stop) => stop())
+  stopWatchers = []
+
+  const ipcRenderer = getIpcRenderer()
+  ipcListeners.forEach(({ channel, listener }) => {
+    ipcRenderer?.removeListener?.(channel, listener)
+  })
+  ipcListeners = []
 }
