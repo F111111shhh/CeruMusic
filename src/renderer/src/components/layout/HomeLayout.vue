@@ -195,9 +195,12 @@ const inputRef = ref<any>(null)
 // 处理搜索事件
 const handleSearch = async () => {
   if (!SearchStore.getValue.trim()) return
+  // 先结束输入焦点，确保搜索页激活时会执行查询。
+  SearchStore.setFocus(false)
+  inputRef.value?.blur?.()
   // 重新设置搜索关键字
   try {
-    router.push({
+    await router.push({
       path: '/home/search'
     })
   } catch (error) {
@@ -207,14 +210,15 @@ const handleSearch = async () => {
 
 const clearSearch = () => {
   SearchStore.setValue('')
+  SearchStore.setFocus(true)
+  // 搜索页使用 KeepAlive，清空时显式回到发现页，避免依赖 blur 事件顺序。
+  void router.push({ name: 'find' })
   inputRef.value?.focus?.()
 }
 
 // 处理按键事件，按下回车键时触发搜索
 const handleKeyDown = () => {
-  handleSearch()
-  // 回车后取消输入框焦点
-  inputRef.value?.blur?.()
+  void handleSearch()
 }
 
 // 处理搜索建议选择

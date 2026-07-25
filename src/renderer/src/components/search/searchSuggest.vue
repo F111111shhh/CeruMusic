@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { useSearchStore } from '@renderer/store'
 import { watchDebounced } from '@vueuse/core'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, toRaw } from 'vue'
 import { LocalUserDetailStore } from '@renderer/store/LocalUserDetail'
 
 const emit = defineEmits<{
@@ -161,19 +161,27 @@ const calcSearchSuggestHeights = () => {
   }
 }
 
-// 搜索框改变
+// 输入内容变化时立即清理旧建议并使正在进行的请求失效。
+watch(
+  () => SearchStore.value,
+  (val) => {
+    suggestRequestId += 1
+    searchSuggestData.value = {}
+    if (!val.trim()) {
+      searchSuggestHeights.value = 0
+      nextTick(calcSearchSuggestHeights)
+    }
+  }
+)
+
+// 搜索框改变，组件在 KeepAlive 或热重载后也要根据当前值恢复建议。
 watchDebounced(
   () => SearchStore.value,
   (val) => {
-    if (!val || val === '') {
-      suggestRequestId += 1
-      searchSuggestData.value = {}
-      nextTick(calcSearchSuggestHeights)
-      return
-    }
+    if (!val.trim()) return
     getSearchSuggest(val)
   },
-  { debounce: 300 }
+  { debounce: 300, immediate: true }
 )
 </script>
 
